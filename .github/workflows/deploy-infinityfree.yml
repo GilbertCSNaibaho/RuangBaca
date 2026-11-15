@@ -1,0 +1,127 @@
+name: Deploy RuangBaca to InfinityFree
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Build config & FTPS Deploy to InfinityFree
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Validate required GitHub Secrets
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          DB_HOST: ${{ secrets.DB_HOST }}
+          DB_NAME: ${{ secrets.DB_NAME }}
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASS: ${{ secrets.DB_PASS }}
+        run: |
+          for var in FTP_SERVER FTP_USERNAME FTP_PASSWORD DB_HOST DB_NAME DB_USER; do
+            if [ -z "${!var}" ]; then
+              echo "Error: Secret $var belum diisi pada GitHub Repository Secrets."
+              exit 1
+            fi
+          done
+          echo "Seluruh secret wajib tersedia (nilai dirahasiakan)."
+
+      - name: Generate temporary config/database.php from secrets
+        env:
+          DB_HOST: ${{ secrets.DB_HOST }}
+          DB_NAME: ${{ secrets.DB_NAME }}
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASS: ${{ secrets.DB_PASS }}
+        run: |
+          python3 - <<'PY'
+          import os
+          import textwrap
+          from pathlib import Path
+
+          def php_single_quote(val: str) -> str:
+              return "'" + val.replace("\\", "\\\\").replace("'", "\\'") + "'"
+
+          host = php_single_quote(os.environ.get("DB_HOST", ""))
+          dbname = php_single_quote(os.environ.get("DB_NAME", ""))
+          username = php_single_quote(os.environ.get("DB_USER", ""))
+          password = php_single_quote(os.environ.get("DB_PASS", ""))
+
+          content = textwrap.dedent(f"""\
+          <?php
+
+          $host = {host};
+          $dbname = {dbname};
+          $username = {username};
+          $password = {password};
+
+          try {{
+
+              $pdo = new PDO(
+                  "mysql:host=$host;dbname=$dbname;charset=utf8mb4",
+                  $username,
+                  $password
+              );
+
+              $pdo->setAttribute(
+                  PDO::ATTR_ERRMODE,
+                  PDO::ERRMODE_EXCEPTION
+              );
+
+              $pdo->setAttribute(
+                  PDO::ATTR_DEFAULT_FETCH_MODE,
+                  PDO::FETCH_ASSOC
+              );
+
+              $pdo->setAttribute(
+                  PDO::ATTR_EMULATE_PREPARES,
+                  false
+              );
+
+          }} catch (PDOException $e) {{
+
+              error_log("Database connection error: " . $e->getMessage());
+              http_response_code(500);
+              exit("Terjadi gangguan pada layanan sistem. Silakan coba lagi beberapa saat lagi.");
+
+          }}
+          """)
+          Path("config/database.php").write_text(content, encoding="utf-8")
+          print("config/database.php sementara berhasil dibuat (kredensial tidak dicetak).")
+          PY
+          if command -v php >/dev/null 2>&1; then
+            php -l config/database.php
+          fi
+
+      - name: Deploy files via FTPS
+        uses: SamKirkland/FTP-Deploy-Action@v4.4.0
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          protocol: ftps
+          port: 21
+          local-dir: ./
+          server-dir: htdocs/
+          dry-run: false
+          dangerous-clean-slate: false
+          exclude: |
+            .git/**
+            .gitattributes
+            .gitignore
+            .github/**
+            README.md
+            *.sql
+            **/*.sql
+            *.sql.*
+            config/database.example.php
+            .env
+            .env.*
+            storage/books/*.pdf
+            storage/books/**/*.pdf
