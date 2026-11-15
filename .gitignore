@@ -1,0 +1,64 @@
+# ==============================================================================
+# .gitignore — RuangBaca (PHP Native + PDO MySQL + XAMPP)
+# ==============================================================================
+
+# 1. Konfigurasi Database Lokal & Environment (Mengandung Kredensial)
+/config/database.php
+!/config/database.example.php
+.env
+.env.*
+
+# 2. File Backup Database & Backup Source Code
+*backup*.sql
+*dump*.sql
+*.sql.gz
+*.sql.zip
+*.sql.bak
+!database.sql
+!database_seed.sql
+/backups/
+/backup/
+*source_backup*/
+*.bak
+*.orig
+*.old
+
+# 3. Isi Direktori Penyimpanan Berkas Pengguna (PDF & Sampul)
+/storage/books/*
+!/storage/books/.gitkeep
+/storage/covers/*
+!/storage/covers/.gitkeep
+!/storage/.htaccess
+
+# 4. Pertahankan Struktur Folder Aset Kosong
+!/assets/img/.gitkeep
+
+# 5. File Diagnostik & Pengujian Lokal
+/test_*.php
+/debug*.php
+/phpinfo.php
+
+# 6. Log, Cache, & File Sementara (Temp)
+*.log
+error_log
+php_error.log
+/logs/
+/tmp/
+/temp/
+/cache/
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+# 7. File IDE, Editor, & Sistem Operasi
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
